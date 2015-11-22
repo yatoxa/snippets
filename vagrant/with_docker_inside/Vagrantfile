@@ -1,0 +1,64 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure(2) do |config|
+
+  timestamp = Time.now.strftime("%Y%m%d_%H%M%S")
+
+  config.vm.define "test_docker_host", primary: true do |tdh|
+    tdh.vm.box = "ubuntu/trusty64"
+    tdh.vm.box_check_update = false
+    tdh.vm.network "private_network", ip: "192.168.33.10"
+    tdh.vm.synced_folder ".", "/vagrant",
+      type: "nfs",
+      linux__nfs_options: ["rw", "no_root_squash", "no_subtree_check"]
+    tdh.vm.provider "virtualbox" do |vb|
+      vb.memory = 1024
+      vb.cpus = 2
+    end
+  end
+
+  config.vm.provision "docker" do |d|
+    d.build_image "/vagrant/deploy/rabbitmq",
+      args: "--tag=test_queue"
+    d.build_image "/vagrant/deploy/redis",
+      args: "--tag=test_cache"
+  end
+
+  config.vm.provision "shell",
+    inline: "docker tag test_queue test_queue:" + timestamp
+  config.vm.provision "shell",
+    inline: "docker tag test_cache test_cache:" + timestamp
+
+  config.vm.provision "shell",
+    inline: "mkdir -p /vagrant/stuff/test_queue"
+  config.vm.provision "shell",
+    inline: "mkdir -p /vagrant/stuff/test_cache"
+
+  config.vm.define "test_queue", autostart: false do |tq|
+    tq.vm.synced_folder ".", "/vagrant", disabled: true
+    tq.vm.provider "docker" do |d|
+      d.image = "test_queue"
+      d.force_host_vm = true
+      d.vagrant_machine = "test_docker_host"
+      d.vagrant_vagrantfile = __FILE__
+      d.name = "test_queue"
+      d.ports = ["5672:5672", "15672:15672"]
+      d.volumes = ["/vagrant/stuff/test_queue:/var/lib/rabbitmq"]
+    end
+  end
+
+  config.vm.define "test_cache", autostart: false do |tc|
+    tc.vm.synced_folder ".", "/vagrant", disabled: true
+    tc.vm.provider "docker" do |d|
+      d.image = "test_cache"
+      d.force_host_vm = true
+      d.vagrant_machine = "test_docker_host"
+      d.vagrant_vagrantfile = __FILE__
+      d.name = "test_cache"
+      d.ports = ["6379:6379"]
+      d.volumes = ["/vagrant/stuff/test_cache:/data"]
+    end
+  end
+
+end
