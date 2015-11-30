@@ -1,12 +1,12 @@
+from collections import defaultdict
+
 
 class EventEmitter(object):
 
     def __init__(self):
-        self._listeners = {}
+        self._listeners = defaultdict(list)
 
     def on(self, event, listener):
-        if event not in self._listeners:
-            self._listeners[event] = []
         self._listeners[event].append(listener)
         return self
 
@@ -18,33 +18,21 @@ class EventEmitter(object):
         return self
 
     def remove_listener(self, event, listener):
-        try:
-            self._listeners[event].remove(listener)
-        except KeyError or ValueError:
-            pass
+        self._listeners[event].remove(listener)
         return self
 
-    def remove_all_listeners(self, event=None):
-        if event is None:
-            self._listeners = {}
+    def remove_all_listeners(self, event=None, each=False):
+        if each:
+            self._listeners = defaultdict(list)
         else:
-            try:
-                del self._listeners[event]
-            except KeyError:
-                pass
+            del self._listeners[event]
         return self
 
     def listeners(self, event):
-        try:
-            return self._listeners[event]
-        except KeyError:
-            return {}
+        return self._listeners[event]
 
     def emit(self, event, *args, **kwargs):
-        try:
-            l_count = len(self._listeners[event])
-        except KeyError:
-            return False
+        l_count = len(self._listeners[event])
         for l_item in self._listeners[event]:
             l_item(*args, **kwargs)
         return l_count
